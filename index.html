@@ -340,6 +340,14 @@
             /* テキストを白に */
         }
 
+.highlight-textdatumou {
+    display: block;
+    font-weight: normal; /* 細字に変更 */
+    text-align: center;
+    border-radius: 0;
+    color: rgb(0, 0, 0); /* テキストを黒に */
+}
+
         .highlight-backgroundman {
             background-color: #FFE6CE;
             padding: 10px;
@@ -830,7 +838,7 @@
 
         <div id="male" class="menu-section">
             <div class="highlight-backgroundman">
-                <span class="highlight-text">脱毛</span>
+                <span class="highlight-textdatumou">脱毛</span>
             </div>
             <div class="symptoms">
                 <button type="button" onclick="selectSymptom(this)" data-id="symptom1" data-price="9800">髭脱毛</button>
@@ -882,7 +890,7 @@
 
         <div id="female" class="menu-section">
             <div class="highlight-backgroundfemale">
-                <span class="highlight-text">脱毛</span>
+                <span class="highlight-textdatumou">脱毛</span>
             </div>
             <div class="symptoms">
                 <button type="button" onclick="selectSymptom(this)" data-id="symptom23" data-price="9800">VIOダブル脱毛</button>
@@ -966,7 +974,7 @@
         </div>
 
 <!-- ② HTML：各ブロックの「日付入力」をラップして“日付を選択”を重ねる -->
-<div class="label">希望日時<span class="required">必須</span></div>
+<div class="label">希望日時</div>
 <div class="datetime-wrapper" style="text-align: center;">
   <span class="placeholder" id="placeholder1">⇩タップして日時を入力⇩</span>
   <!-- 提出/既存処理用：ISO(YYYY-MM-DDTHH:MM) を入れる -->
@@ -979,7 +987,7 @@
 </div>
 
 <!-- 第二希望日時 -->
-<div class="labelueni">第二希望日時<span class="required">必須</span></div>
+<div class="labelueni">第二希望日時</div>
 <div class="datetime-wrapper" style="text-align: center;">
   <span class="placeholder" id="placeholder2">⇩タップして日時を入力⇩</span>
   <input type="hidden" id="date2" name="date2">
@@ -996,7 +1004,6 @@
         <div id="displayInfo"></div> <!-- ここに選択された情報を表示します -->
 
         <button class="submit-button" onclick="submitForm()"><strong>予約を行う</strong></button>
-        <div class="info-textmemo" style="font-size:12px; text-align:center;">空き状況を確認の上、折り返しこちらからご連絡いたします。</div>
 
         <div class="title-with-image">
             <img src="https://www.dropbox.com/scl/fi/fc7hydgsaesylhxxo0qc0/_.png?rlkey=nudq0llox55v0n4xrpedv9p9i&st=h4wvxree&raw=1"
@@ -1857,47 +1864,63 @@ function initPicker(baseId, dateDays = 120) {
             updateDisplayInfo();
         }
 
+function submitForm() {
+    // selectedSymptomが配列の場合は文字列に変換
+    const formattedSymptom = Array.isArray(selectedSymptom)
+        ? selectedSymptom.join(' / ')
+        : selectedSymptom;
 
-        function submitForm() {
-            // selectedSymptomが配列の場合は文字列に変換
-            const formattedSymptom = Array.isArray(selectedSymptom)
-                ? selectedSymptom.join(' / ')
-                : selectedSymptom;
+    const formData = {
+        visitCount: visitCount,
+        selectedSymptom: formattedSymptom,
+        irradiationsCount: irradiationsCount,
+        dates: [
+            document.getElementById('date1').value,
+            document.getElementById('date2').value
+        ],
+        message: document.getElementById('message').value.trim()
+    };
 
-            const formData = {
-                visitCount: visitCount,
-                selectedSymptom: formattedSymptom,
-                irradiationsCount: irradiationsCount,
-                dates: [
-                    document.getElementById('date1').value,
-                    document.getElementById('date2').value
-                ],
-                message: document.getElementById('message').value.trim()
-            };
+    if (!formData.selectedSymptom) {
+        alert('メニューを選択してください。');
+        return;
+    }
 
-            const dateWithoutDayOfWeek = formData.dates[0].replace(/（.*?）/, '');
+    if (!formData.dates[0]) {
+        alert('第1希望日※必須を選択してください。');
+        return;
+    }
 
-            if (!formData.selectedSymptom) {
-                alert('メニューを選択してください。');
-                return;
-            }
+    // メッセージ本文を組み立て
+    let messageText = `【予約フォーム】\n《ご性別》\n⇒${formData.visitCount}\n《メニュー》\n⇒${formData.selectedSymptom}\n\n【希望日時】\n《第一希望日》\n⇒${formatDate(formData.dates[0])}`;
 
-            if (!formData.dates[0]) {
-                alert('第1希望日※必須を選択してください。');
-                return;
-            }
+    // 第二希望日がある場合のみ追加
+    if (formData.dates[1]) {
+        messageText += `\n\n《第二希望日》\n⇒${formatDate(formData.dates[1])}`;
+    }
 
-            // メッセージ部分を条件付きで作成
-            let messageText = `【予約フォーム】\n《ご性別》\n⇒${formData.visitCount}\n《メニュー》\n⇒${formData.selectedSymptom}\n\n【希望日時】\n《第一希望日》\n⇒${formatDate(formData.dates[0])}\n\n《第二希望日》\n⇒${formatDate(formData.dates[1])}`;
-            if (formData.message) {
-                messageText += `\n\n《メッセージ》\n⇒${formData.message}`;
-            }
+    // メッセージ欄がある場合のみ追加
+    if (formData.message) {
+        messageText += `\n\n《メッセージ》\n⇒${formData.message}`;
+    }
+
+    // LIFFメッセージ送信
+    liff.sendMessages([{
+        type: 'text',
+        text: messageText
+    }]).then(() => {
+        alert('ご予約ありがとうございます！空き状況を確認の上、折り返しご連絡いたします。暫くお待ちください。');
+        liff.closeWindow();
+    }).catch((err) => {
+        console.error('メッセージの送信に失敗しました', err);
+    });
+}
 
             liff.sendMessages([{
                 type: 'text',
                 text: messageText
             }]).then(() => {
-                alert('当日キャンセルはくれぐれもお控えくださいますようお願いいたします。\nキャンセル料支払い対象となります');
+                alert('ご予約ありがとうございます！空き状況を確認の上、折り返しご連絡いたします。暫くお待ちください。');
                 liff.closeWindow();
             }).catch((err) => {
                 console.error('メッセージの送信に失敗しました', err);
