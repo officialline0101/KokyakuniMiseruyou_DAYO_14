@@ -811,6 +811,20 @@
 
 /* menuLabel を常時表示（もしどこかで消されても上書き） */
 #menuLabel { display: block !important; visibility: visible !important; }
+
+  /* 入力文字のサイズ */
+  #message {
+    font-size: 18px;
+    line-height: 1.8;
+  }
+  /* プレースホルダーのサイズ */
+  #message::placeholder {
+    font-size: 18px;
+  }
+  /* スマホでの見やすさ調整（任意）*/
+  @media (max-width: 480px) {
+    #message { font-size: 17px; }
+  }
     </style>
 </head>
 
@@ -997,8 +1011,8 @@
   </div>
 </div>
 
-        <div class="labelueni">メッセージ<br>（質問等お気軽にご記入ください）</div>
-        <textarea id="message" rows="4" placeholder="メッセージを入力してください"></textarea>
+<div class="labelueni">メッセージ<br>（質問等お気軽にご記入ください）</div>
+<textarea id="message" rows="2" placeholder="メッセージを入力してください"></textarea>
 
         <div class="label">予約内容</div>
         <div id="displayInfo"></div> <!-- ここに選択された情報を表示します -->
