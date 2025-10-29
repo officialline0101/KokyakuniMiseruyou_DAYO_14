@@ -1909,7 +1909,8 @@ function submitForm() {
 
   liff.sendMessages([{ type: 'text', text: messageText }])
     .then(() => {
-      alert('ご予約ありがとうございます！空き状況を確認の上、折り返しご連絡いたします。暫くお待ちください。');
+      alert(`ご予約ありがとうございます！
+空き状況を確認の上、折り返しご連絡いたします。暫くお待ちください。`);
       liff.closeWindow();
     })
     .catch((err) => {
