@@ -1274,23 +1274,131 @@ document.querySelectorAll('.symptoms button').forEach(button => {
             document.querySelector('.calendar-container').style.display = 'none';
         });
 
+// ================= 共通ユーティリティ =================
 const JP_WD = ['日','月','火','水','木','金','土'];
 const pad = n => String(n).padStart(2,'0');
+const toYMD = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+
+// スキップ条件
+const SKIP_TUESDAY = true; // 火曜を常に除外
+const HOLIDAY_SKIP_START = new Date(2025, 9, 28); // 2025-10-28
+const HOLIDAY_SKIP_END   = new Date(2035, 9, 28); // 2035-10-28（まで）
 
 function toISODateTimeLocal(dayStr, timeStr) {
   if (!dayStr || !timeStr) return "";
   return `${dayStr}T${timeStr}`;
 }
 
-// 日付セレクト：今日から 'days' 日ぶんの候補を作る（★月曜スキップを削除）
+// ============== 日本の祝日セットを生成（2025-2035） ==============
+function nthWeekdayOfMonth(year, month, weekday, n) {
+  // month: 1-12, weekday: 0(Sun)-6(Sat), n: 第n
+  const first = new Date(year, month - 1, 1);
+  const delta = (weekday - first.getDay() + 7) % 7;
+  return 1 + delta + (n - 1) * 7;
+}
+
+function monthDays(year, month) {
+  return new Date(year, month, 0).getDate();
+}
+
+// 春分・秋分（近似式: 1980-2099で有効とされる一般式）
+function vernalEquinoxDay(year) {
+  return Math.floor(20.8431 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+}
+function autumnalEquinoxDay(year) {
+  return Math.floor(23.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+}
+
+function add(set, y, m, d) {
+  set.add(`${y}-${pad(m)}-${pad(d)}`);
+}
+
+function addCitizensHolidayForYear(year, set) {
+  for (let m = 1; m <= 12; m++) {
+    const days = monthDays(year, m);
+    for (let d = 2; d <= days - 1; d++) {
+      const cur = `${year}-${pad(m)}-${pad(d)}`;
+      if (set.has(cur)) continue;
+      const prev = `${year}-${pad(m)}-${pad(d-1)}`;
+      const next = `${year}-${pad(m)}-${pad(d+1)}`;
+      if (set.has(prev) && set.has(next)) {
+        set.add(cur); // 国民の休日
+      }
+    }
+  }
+}
+
+function addSubstituteHolidaysForYear(year, set) {
+  // その年の祝日一覧（日曜なら翌平日まで繰り下げ）
+  const dates = Array.from(set).filter(s => s.startsWith(`${year}-`)).sort();
+  for (const s of dates) {
+    const [y, mm, dd] = s.split('-').map(Number);
+    const dt = new Date(y, mm - 1, dd);
+    if (dt.getDay() !== 0) continue; // 日曜以外は対象外
+    // 振替休日：翌日以降で祝日でない最初の平日
+    const cur = new Date(y, mm - 1, dd + 1);
+    while (set.has(toYMD(cur))) {
+      cur.setDate(cur.getDate() + 1);
+    }
+    set.add(toYMD(cur));
+  }
+}
+
+function buildJapaneseHolidaySet(fromYear, toYear) {
+  const set = new Set();
+  for (let y = fromYear; y <= toYear; y++) {
+    // 固定日
+    add(set, y, 1, 1);   // 元日
+    add(set, y, 2, 11);  // 建国記念の日
+    add(set, y, 2, 23);  // 天皇誕生日
+    add(set, y, 4, 29);  // 昭和の日
+    add(set, y, 5, 3);   // 憲法記念日
+    add(set, y, 5, 4);   // みどりの日
+    add(set, y, 5, 5);   // こどもの日
+    add(set, y, 8, 11);  // 山の日
+    add(set, y, 11, 3);  // 文化の日
+    add(set, y, 11, 23); // 勤労感謝の日
+
+    // ハッピーマンデー
+    add(set, y, 1,  nthWeekdayOfMonth(y, 1, 1, 2)); // 成人の日（1月第2月曜）
+    add(set, y, 7,  nthWeekdayOfMonth(y, 7, 1, 3)); // 海の日（7月第3月曜）
+    add(set, y, 9,  nthWeekdayOfMonth(y, 9, 1, 3)); // 敬老の日（9月第3月曜）
+    add(set, y, 10, nthWeekdayOfMonth(y,10, 1, 2)); // スポーツの日（10月第2月曜）
+
+    // 春分・秋分
+    add(set, y, 3, vernalEquinoxDay(y));
+    add(set, y, 9, autumnalEquinoxDay(y));
+  }
+
+  // 国民の休日 → 振替休日の順で拡張
+  for (let y = fromYear; y <= toYear; y++) addCitizensHolidayForYear(y, set);
+  for (let y = fromYear; y <= toYear; y++) addSubstituteHolidaysForYear(y, set);
+
+  return set;
+}
+
+// 祝日キャッシュ（要件の10年分）
+const JP_HOLIDAYS = buildJapaneseHolidaySet(2025, 2035);
+
+// ============== 日付セレクト：火曜＆（指定範囲の）平日祝日を除外 ==============
 function buildDateOptions(selectEl, days = 120, startDate = new Date()) {
   const d = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
   selectEl.innerHTML = '<option value="" disabled selected>日付を選択</option>';
 
   for (let i = 0; i < days; i++) {
-    const wd = d.getDay(); // 0=日曜 … 6=土曜
+    const wd = d.getDay(); // 0=日 … 6=土
+    const ymd = toYMD(d);
 
-    // ★スキップ条件削除（月曜も表示）
+    // 火曜スキップ
+    if (SKIP_TUESDAY && wd === 2) { d.setDate(d.getDate() + 1); continue; }
+
+    // 指定レンジ内の平日祝日をスキップ
+    const inRange = (d >= HOLIDAY_SKIP_START && d <= HOLIDAY_SKIP_END);
+    const isWeekday = (wd >= 1 && wd <= 5); // 月〜金
+    const isHoliday = JP_HOLIDAYS.has(ymd);
+    if (inRange && isWeekday && isHoliday) { d.setDate(d.getDate() + 1); continue; }
+
+    // 追加
     const y = d.getFullYear();
     const m = pad(d.getMonth() + 1);
     const day = pad(d.getDate());
@@ -1306,11 +1414,11 @@ function buildDateOptions(selectEl, days = 120, startDate = new Date()) {
   }
 }
 
-// ★全曜日共通で 11:00〜19:00（19:30なし）
+// ================== 営業時間・時間セレクトなど下はそのまま ==================
 const WEEKLY_HOURS = {
   0: { start: 11, end: 19 }, // 日曜
   1: { start: 11, end: 19 }, // 月曜
-  2: { start: 11, end: 19 }, // 火曜
+  2: { start: 11, end: 19 }, // 火曜（※日付側で火曜は出さない）
   3: { start: 11, end: 19 }, // 水曜
   4: { start: 11, end: 19 }, // 木曜
   5: { start: 11, end: 19 }, // 金曜
@@ -1337,19 +1445,14 @@ function isBlockedTime(weekday, h, m) {
 // 時間セレクト生成
 function buildHalfHourOptions(selectEl, weekday) {
   selectEl.innerHTML = '<option value="" disabled selected>時間を選択</option>';
-
-  const { start, end } = WEEKLY_HOURS[weekday] || { start: 0, end: 23 };
+  const wh = WEEKLY_HOURS[weekday] || { start: 0, end: 23 };
+  const { start, end } = wh;
 
   for (let h = start; h <= end; h++) {
     for (const m of [0, 30]) {
-      // ★休憩帯スキップ
       if (isBlockedTime(weekday, h, m)) continue;
-
-      // ★19:30は不要なので除外（end=19でm=30は出さない）
-      if (h === 19 && m === 30) continue;
-
-      const hh = pad(h);
-      const mm = pad(m);
+      if (h === 19 && m === 30) continue; // 19:30除外
+      const hh = pad(h), mm = pad(m);
       const opt = document.createElement('option');
       opt.value = `${hh}:${mm}`;
       opt.textContent = `${hh}:${mm}`;
@@ -1366,9 +1469,7 @@ function updateHiddenAndPlaceholder(baseId) {
   const ph = document.getElementById(`placeholder${baseId.slice(-1)}`);
 
   hidden.value = day && time ? `${day}T${time}` : "";
-
   if (ph) ph.style.display = hidden.value ? 'none' : '';
-
   if (typeof updateDisplayInfo === 'function') updateDisplayInfo();
 }
 
@@ -1410,7 +1511,7 @@ function initPicker(baseId, dateDays = 120) {
   daySel.addEventListener('change', () => {
     const dateVal = daySel.value;
     if (dateVal) {
-      const d = new Date(dateVal);
+      const d = new Date(dateVal); // ※文字列→Date（UTC解釈に注意）
       const wd = d.getDay();
       buildHalfHourOptions(timeSel, wd);
       timeSel.classList.remove('time-disabled');
@@ -1422,12 +1523,11 @@ function initPicker(baseId, dateDays = 120) {
   });
 
   restoreIfAny(baseId);
-
   timeSel.addEventListener('change', () => updateHiddenAndPlaceholder(baseId));
   updateHiddenAndPlaceholder(baseId);
 }
 
-// 3つ分を初期化
+// 2つ分を初期化（必要に応じて増減）
 ['date1','date2'].forEach(id => initPicker(id, 120));
 
 
