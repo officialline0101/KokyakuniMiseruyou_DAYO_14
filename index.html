@@ -1879,10 +1879,10 @@ function initPicker(baseId, dateDays = 120) {
         }
 
 function submitForm() {
-  // selectedSymptomが配列の場合は文字列に変換
+  // selectedSymptomが配列の場合は「・」＋改行で連結
   const formattedSymptom = Array.isArray(selectedSymptom)
-    ? selectedSymptom.join(' / ')
-    : selectedSymptom;
+    ? selectedSymptom.map(s => `・${s}`).join('\n')
+    : selectedSymptom ? `・${selectedSymptom}` : '';
 
   const date1Val = (document.getElementById('date1').value || '').trim();
   const date2Val = (document.getElementById('date2').value || '').trim();
@@ -1909,7 +1909,7 @@ function submitForm() {
   let messageText =
     `【予約フォーム】\n` +
     `《ご性別》\n⇒${formData.visitCount}\n` +
-    `《メニュー》\n⇒${formData.selectedSymptom}\n\n` +
+    `《メニュー》\n${formData.selectedSymptom}\n\n` + // ←ここも改行位置を自然に
     `【希望日時】\n` +
     `《第一希望日》\n⇒${formatDate(formData.dates[0])}`;
 
