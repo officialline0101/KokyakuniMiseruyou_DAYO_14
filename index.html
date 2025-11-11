@@ -569,6 +569,14 @@
         });
 
         // AM/PM表示窓
+// その日に10:00開始の予約があるか（営業日イベントは除外）
+const hasTenBooking = availability.some(evt => {
+  if (evt.title === "営業日") return false;
+  const s = new Date(evt.startTime);
+  return s.toDateString() === day.toDateString() &&
+         s.getHours() === 10 && s.getMinutes() === 0;
+});
+
         const amStart = new Date(day); amStart.setHours(9, 30, 0, 0);
         const amEnd   = new Date(day); amEnd.setHours(13, 30, 0, 0);
         const pmStart = new Date(day); pmStart.setHours(13, 30, 0, 0);
@@ -593,13 +601,21 @@
         let limitTime = new Date(now);
         limitTime.setHours(now.getHours() + 23);
 
-        for (let r = 0; r < times.length; r++) {
-          const t = times[r];
-          const cell = table.rows[r].cells[i + 1];
+for (let r = 0; r < times.length; r++) {
+  const t = times[r];
+  const cell = table.rows[r].cells[i + 1];
 
-          const slotStart = new Date(day);
-          const [hh, mm] = t.split(':');
-          slotStart.setHours(parseInt(hh, 10), parseInt(mm, 10), 0, 0);
+  const slotStart = new Date(day);
+  const [hh, mm] = t.split(':');
+  slotStart.setHours(parseInt(hh, 10), parseInt(mm, 10), 0, 0);
+
+  // ★ 10:00予約が入っている日は、13:30は強制的に✕
+  if (t === '13:30' && hasTenBooking) {
+    cell.textContent = '✕';
+    cell.classList.add('unavailable');
+    cell.removeAttribute('data-date');
+    continue;
+  }
 
           const duration = (selectedMenuTime || 10) + (selectedVisitTime || 0) + (selectedirradiationsTime || 0);
           const slotEnd = new Date(slotStart); slotEnd.setMinutes(slotEnd.getMinutes() + duration);
